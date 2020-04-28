@@ -1,3 +1,13 @@
+## 0.10.1+7
+
+* Implemented playback speed feature.
+* Bump the minimum Flutter version to 1.2.0.
+* Add template type parameter to `invokeMethod` calls.
+
+## 0.10.1+6
+
+* [iOS] Fixed a memory leak with notification observing.
+
 ## 0.10.1+5
 
 * Fix race condition while disposing the VideoController.
@@ -29,7 +39,6 @@
 * iOS: Fix an issue where the player sends initialization message incorrectly.
 
 * Fix a few other IDE warnings.
-
 
 ## 0.10.0+7
 

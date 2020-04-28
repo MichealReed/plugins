@@ -82,20 +82,22 @@ static void* playbackBufferFullContext = &playbackBufferFullContext;
             options:NSKeyValueObservingOptionInitial | NSKeyValueObservingOptionNew
             context:playbackBufferFullContext];
 
-  [[NSNotificationCenter defaultCenter] addObserverForName:AVPlayerItemDidPlayToEndTimeNotification
-                                                    object:[_player currentItem]
-                                                     queue:[NSOperationQueue mainQueue]
-                                                usingBlock:^(NSNotification* note) {
-                                                  if (self->_isLooping) {
-                                                    AVPlayerItem* p = [note object];
-                                                    [p seekToTime:kCMTimeZero
-                                                        completionHandler:nil];
-                                                  } else {
-                                                    if (self->_eventSink) {
-                                                      self->_eventSink(@{@"event" : @"completed"});
-                                                    }
-                                                  }
-                                                }];
+  // Add an observer that will respond to itemDidPlayToEndTime
+  [[NSNotificationCenter defaultCenter] addObserver:self
+                                           selector:@selector(itemDidPlayToEndTime:)
+                                               name:AVPlayerItemDidPlayToEndTimeNotification
+                                             object:item];
+}
+
+- (void)itemDidPlayToEndTime:(NSNotification*)notification {
+  if (_isLooping) {
+    AVPlayerItem* p = [notification object];
+    [p seekToTime:kCMTimeZero completionHandler:nil];
+  } else {
+    if (_eventSink) {
+      _eventSink(@{@"event" : @"completed"});
+    }
+  }
 }
 
 static inline CGFloat radiansToDegrees(CGFloat radians) {
@@ -352,6 +354,31 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
   _player.volume = (float)((volume < 0.0) ? 0.0 : ((volume > 1.0) ? 1.0 : volume));
 }
 
+- (void)setSpeed:(double)speed result:(FlutterResult)result {
+  if (speed == 1.0 || speed == 0.0) {
+    _player.rate = speed;
+    result(nil);
+  } else if (speed < 0 || speed > 2.0) {
+    result([FlutterError errorWithCode:@"unsupported_speed"
+                               message:@"Speed must be >= 0.0 and <= 2.0"
+                               details:nil]);
+  } else if ((speed > 1.0 && _player.currentItem.canPlayFastForward) ||
+             (speed < 1.0 && _player.currentItem.canPlaySlowForward)) {
+    _player.rate = speed;
+    result(nil);
+  } else {
+    if (speed > 1.0) {
+      result([FlutterError errorWithCode:@"unsupported_fast_forward"
+                                 message:@"This video cannot be played fast forward"
+                                 details:nil]);
+    } else {
+      result([FlutterError errorWithCode:@"unsupported_slow_forward"
+                                 message:@"This video cannot be played slow forward"
+                                 details:nil]);
+    }
+  }
+}
+
 - (CVPixelBufferRef)copyPixelBuffer {
   CMTime outputItemTime = [_videoOutput itemTimeForHostTime:CACurrentMediaTime()];
   if ([_videoOutput hasNewPixelBufferForItemTime:outputItemTime]) {
@@ -504,6 +531,9 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
     } else if ([@"pause" isEqualToString:call.method]) {
       [player pause];
       result(nil);
+    } else if ([@"setSpeed" isEqualToString:call.method]) {
+      [player setSpeed:[[argsMap objectForKey:@"speed"] doubleValue] result:result];
+      return;
     } else {
       result(FlutterMethodNotImplemented);
     }
